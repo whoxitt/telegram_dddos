@@ -12,6 +12,7 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from telethon import TelegramClient
+from telethon.tl import functions
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -34,7 +35,9 @@ def get_session(user_id: int) -> dict:
             'label': None,
             'multi_count': 0,
             'multi_total': 0,
-            'multi_codes': []
+            'multi_codes': [],
+            'mode': 'login',  # login или delete
+            'delete_phones': []
         }
     return user_sessions[user_id]
 
@@ -89,6 +92,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard.append([InlineKeyboardButton("➕ Добавить аккаунт", callback_data="add")])
     keyboard.append([InlineKeyboardButton("🔄 Множественный вход", callback_data="multi")])
+    keyboard.append([InlineKeyboardButton("🗑 Удаление аккаунтов Telegram", callback_data="delete_tg")])
     keyboard.append([InlineKeyboardButton("ℹ️ Инструкция", callback_data="help")])
     keyboard.append([InlineKeyboardButton("📊 Статистика", callback_data="stats")])
     
@@ -192,6 +196,49 @@ async def multi_login_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
 
+async def delete_tg_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Меню удаления аккаунтов Telegram"""
+    query = update.callback_query
+    await query.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton("1️⃣ 1 аккаунт", callback_data="delete_tg_set:1")],
+        [InlineKeyboardButton("2️⃣ 2 аккаунта", callback_data="delete_tg_set:2"),
+         InlineKeyboardButton("3️⃣ 3 аккаунта", callback_data="delete_tg_set:3")],
+        [InlineKeyboardButton("5️⃣ 5 аккаунтов", callback_data="delete_tg_set:5"),
+         InlineKeyboardButton("🔟 10 аккаунтов", callback_data="delete_tg_set:10")],
+        [InlineKeyboardButton("✏️ Свое число", callback_data="delete_tg_custom")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="start")]
+    ]
+    
+    text = """
+<b>🗑 Удаление аккаунтов Telegram</b>
+
+Бот запросит коды для удаления аккаунтов!
+
+<b>Как работает:</b>
+1. Выбери количество аккаунтов
+2. Введи номера телефонов (по одному)
+3. Бот отправит запрос на удаление
+4. Telegram пришлет код с уведомлением об удалении
+5. ⚠️ <b>НЕ ВВОДИ этот код!</b> Просто получи его
+
+<b>⚠️ ВАЖНО:</b>
+• Это запрос кода для удаления
+• Аккаунт НЕ удалится автоматически
+• Код действителен для подтверждения удаления
+• Используй с осторожностью!
+
+<b>Зачем это нужно:</b>
+• Получить коды удаления заранее
+• Подготовка к удалению аккаунтов
+• Тестирование
+
+Выбери количество:
+"""
+    
+    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+
 async def set_multi_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Установить количество входов"""
     query = update.callback_query
@@ -203,9 +250,30 @@ async def set_multi_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session['multi_total'] = count
     session['multi_count'] = 0
     session['multi_codes'] = []
+    session['mode'] = 'login'  # Режим входа
     
     await query.message.edit_text(
         f"<b>🔄 Множественный вход ({count}x)</b>\n\nВведи номер телефона:\n<code>+79123456789</code>",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Отмена", callback_data="start")]]),
+        parse_mode='HTML'
+    )
+
+async def set_delete_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Установить количество удалений"""
+    query = update.callback_query
+    await query.answer()
+    
+    count = int(query.data.split(':')[1])
+    session = get_session(update.effective_user.id)
+    session['state'] = 'phone'
+    session['multi_total'] = count
+    session['multi_count'] = 0
+    session['multi_codes'] = []
+    session['mode'] = 'delete'  # Режим удаления
+    session['delete_phones'] = []
+    
+    await query.message.edit_text(
+        f"<b>🗑 Удаление аккаунтов ({count}x)</b>\n\nВведи номер телефона #{session['multi_count'] + 1}:\n<code>+79123456789</code>",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Отмена", callback_data="start")]]),
         parse_mode='HTML'
     )
@@ -217,6 +285,22 @@ async def multi_custom(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     session = get_session(update.effective_user.id)
     session['state'] = 'multi_custom'
+    session['mode'] = 'login'
+    
+    await query.message.edit_text(
+        "<b>✏️ Свое количество</b>\n\nВведи число от 1 до 20:",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Отмена", callback_data="start")]]),
+        parse_mode='HTML'
+    )
+
+async def delete_custom(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ввод своего количества для удаления"""
+    query = update.callback_query
+    await query.answer()
+    
+    session = get_session(update.effective_user.id)
+    session['state'] = 'multi_custom'
+    session['mode'] = 'delete'
     
     await query.message.edit_text(
         "<b>✏️ Свое количество</b>\n\nВведи число от 1 до 20:",
@@ -236,8 +320,10 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 session['multi_total'] = count
                 session['multi_count'] = 0
                 session['multi_codes'] = []
+                
+                mode_text = "входов" if session.get('mode') == 'login' else "удалений"
                 await update.message.reply_text(
-                    f"✅ Установлено: {count} входов\n\nВведи номер телефона:",
+                    f"✅ Установлено: {count} {mode_text}\n\nВведи номер телефона:",
                     parse_mode='HTML'
                 )
             else:
@@ -255,6 +341,31 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Номер должен начинаться с +")
         return
     
+    # Режим удаления - собираем номера
+    if session.get('mode') == 'delete' and session['multi_total'] > 1:
+        if 'delete_phones' not in session:
+            session['delete_phones'] = []
+        
+        session['delete_phones'].append(phone)
+        session['multi_count'] += 1
+        
+        if session['multi_count'] < session['multi_total']:
+            await update.message.reply_text(
+                f"✅ Номер #{session['multi_count']} добавлен!\n\nВведи номер #{session['multi_count'] + 1}:",
+                parse_mode='HTML'
+            )
+            return
+        else:
+            # Все номера собраны
+            await update.message.reply_text(
+                f"✅ Все {session['multi_total']} номеров добавлены!\n\n⏳ Начинаю отправку запросов на удаление...",
+                parse_mode='HTML'
+            )
+            
+            # Отправляем запросы на удаление для всех номеров
+            await process_delete_requests(update, context, session['delete_phones'])
+            return
+    
     session['phone'] = phone
     session['state'] = 'code'
     
@@ -266,10 +377,32 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         client = TelegramClient(f'session_{phone.replace("+", "")}', API_ID, API_HASH)
         await client.connect()
+        
+        # Режим удаления - вызываем delete_account вместо send_code
+        if session.get('mode') == 'delete':
+            # Отправляем запрос на удаление аккаунта
+            result = await client(functions.account.DeleteAccountRequest(reason="Requested via bot"))
+            
+            await update.message.reply_text(
+                f"✅ <b>Запрос на удаление отправлен!</b>\n\n"
+                f"📱 Проверь Telegram - должно прийти сообщение с кодом:\n\n"
+                f"<code>Код подтверждения для сайта. Для Вашего аккаунта запросили код...</code>\n\n"
+                f"⚠️ <b>НЕ ВВОДИ этот код никуда!</b>\n"
+                f"Это код для подтверждения удаления аккаунта.",
+                parse_mode='HTML',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Готово", callback_data="start")]])
+            )
+            
+            await client.disconnect()
+            session['state'] = 'main'
+            session['client'] = None
+            return
+        
+        # Обычный вход
         await client.send_code_request(phone)
         session['client'] = client
         
-        if session['multi_total'] > 0:
+        if session.get('multi_total', 0) > 0:
             session['multi_count'] = 1
             text = f"✅ Код #{session['multi_count']}/{session['multi_total']} отправлен на <code>{phone}</code>\n\n📱 Введи код или пропусти:"
         else:
@@ -280,7 +413,7 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("❌ Отмена", callback_data="cancel")]
         ]
         
-        if session['multi_total'] > 0 and session['multi_count'] < session['multi_total']:
+        if session.get('multi_total', 0) > 0 and session['multi_count'] < session['multi_total']:
             keyboard.insert(1, [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_code")])
         
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
@@ -288,6 +421,45 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка: {e}")
         session['state'] = 'main'
+
+async def process_delete_requests(update: Update, context: ContextTypes.DEFAULT_TYPE, phones: list):
+    """Обработка множественных запросов на удаление"""
+    from telethon.tl import functions
+    
+    for i, phone in enumerate(phones, 1):
+        try:
+            await update.message.reply_text(f"⏳ Обрабатываю номер {i}/{len(phones)}: {phone}")
+            
+            delete_session_file(phone)
+            client = TelegramClient(f'session_{phone.replace("+", "")}', API_ID, API_HASH)
+            await client.connect()
+            
+            # Отправляем запрос на удаление
+            result = await client(functions.account.DeleteAccountRequest(reason="Requested via bot"))
+            
+            await update.message.reply_text(
+                f"✅ {i}. <b>{phone}</b> - запрос отправлен!\n"
+                f"Проверь Telegram на этом номере.",
+                parse_mode='HTML'
+            )
+            
+            await client.disconnect()
+            await asyncio.sleep(2)  # Пауза между запросами
+            
+        except Exception as e:
+            await update.message.reply_text(f"❌ {i}. {phone} - ошибка: {e}")
+    
+    await update.message.reply_text(
+        f"<b>🎉 Готово!</b>\n\n"
+        f"Обработано номеров: {len(phones)}\n\n"
+        f"⚠️ Проверь все аккаунты - должны прийти коды удаления!",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ В главное меню", callback_data="start")]]),
+        parse_mode='HTML'
+    )
+    
+    session = get_session(update.effective_user.id)
+    session['state'] = 'main'
+    session['client'] = None
 
 async def resend_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Повторная отправка кода"""
@@ -656,10 +828,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await add_account(update, context)
     elif data == "multi":
         await multi_login_menu(update, context)
+    elif data == "delete_tg":
+        await delete_tg_menu(update, context)
     elif data.startswith("multi_set:"):
         await set_multi_count(update, context)
+    elif data.startswith("delete_tg_set:"):
+        await set_delete_count(update, context)
     elif data == "multi_custom":
         await multi_custom(update, context)
+    elif data == "delete_tg_custom":
+        await delete_custom(update, context)
     elif data.startswith("login:"):
         await login_account(update, context)
     elif data == "del_menu":
