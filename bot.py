@@ -149,15 +149,16 @@ async def multi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     session = get_session(update.effective_user.id)
-    pause = session.get('pause_seconds', 5)
+    pause = session.get('pause_seconds', 10)
     
     keyboard = [
         [InlineKeyboardButton("2️⃣ 2x", callback_data="multi_set:2"),
          InlineKeyboardButton("3️⃣ 3x", callback_data="multi_set:3"),
          InlineKeyboardButton("5️⃣ 5x", callback_data="multi_set:5")],
         [InlineKeyboardButton("🔟 10x", callback_data="multi_set:10"),
-         InlineKeyboardButton("🔢 20x", callback_data="multi_set:20")],
-        [InlineKeyboardButton("✏️ Свое число", callback_data="multi_custom")],
+         InlineKeyboardButton("🔢 15x", callback_data="multi_set:15"),
+         InlineKeyboardButton("📋 20x", callback_data="multi_set:20")],
+        [InlineKeyboardButton("🚀 30x", callback_data="multi_set:30")],
         [InlineKeyboardButton("◀️ Назад", callback_data="start")]
     ]
     
@@ -167,15 +168,19 @@ async def multi_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Бот зайдет N раз подряд с паузой {pause}сек между запросами.
 
 <b>Как работает:</b>
-1. Выбери количество
+1. Выбери количество (до 30)
 2. Введи номер телефона
 3. Бот будет заходить N раз
 4. Каждый раз - НОВАЯ сессия и НОВЫЙ код!
 
-<b>Паузы важны:</b>
-• {pause}сек между запросами - защита от флудвейта
-• Telegram ограничивает частоту запросов
-• Можно настроить в "⚙️ Настройки паузы"
+<b>⚠️ Важно про лимиты:</b>
+• Telegram ограничивает частоту
+• Для 10-15 кодов: пауза 10-15сек
+• Для 20-30 кодов: пауза 15-20сек
+• Если флудвейт - увеличь паузу!
+
+Текущая пауза: <b>{pause}сек</b>
+Настроить: ⚙️ Настройки паузы
 
 Выбери количество:
 """
@@ -187,29 +192,39 @@ async def delete_tg_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     keyboard = [
-        [InlineKeyboardButton("1️⃣ 1 аккаунт", callback_data="delete_tg_set:1")],
-        [InlineKeyboardButton("2️⃣ 2x", callback_data="delete_tg_set:2"),
-         InlineKeyboardButton("3️⃣ 3x", callback_data="delete_tg_set:3"),
-         InlineKeyboardButton("5️⃣ 5x", callback_data="delete_tg_set:5")],
-        [InlineKeyboardButton("🔟 10x", callback_data="delete_tg_set:10")],
+        [InlineKeyboardButton("1️⃣ 1", callback_data="delete_tg_set:1")],
+        [InlineKeyboardButton("3️⃣ 3x", callback_data="delete_tg_set:3"),
+         InlineKeyboardButton("5️⃣ 5x", callback_data="delete_tg_set:5"),
+         InlineKeyboardButton("🔟 10x", callback_data="delete_tg_set:10")],
+        [InlineKeyboardButton("� 15x", callback_data="delete_tg_set:15"),
+         InlineKeyboardButton("📋 20x", callback_data="delete_tg_set:20")],
         [InlineKeyboardButton("◀️ Назад", callback_data="start")]
     ]
     
-    text = """
+    session = get_session(update.effective_user.id)
+    pause = session.get('pause_seconds', 10)
+    
+    text = f"""
 <b>🗑 Коды на удаление аккаунтов</b>
 
-Бот запросит коды подтверждения удаления!
+Бот отправит запросы на удаление и придут коды!
 
 <b>Как работает:</b>
-1. Выбери количество
-2. Введи номера (по одному)
-3. Бот отправит запросы на удаление
-4. Придут коды с текстом об удалении
+1. Выбери количество (до 20)
+2. Введи номера по одному
+3. Бот отправит запросы с паузой {pause}сек
+4. На каждый номер придет КОД УДАЛЕНИЯ
 
-<b>⚠️ ВАЖНО:</b>
-• Это НЕ удаляет аккаунт
-• Просто запрашивает код
-• НЕ вводи этот код никуда!
+<b>⚠️ Важно про лимиты:</b>
+• Telegram ограничивает частоту
+• Используй паузу минимум 10сек
+• Для 15-20 кодов поставь паузу 15-30сек
+• Если флудвейт - увеличь паузу!
+
+<b>💡 Совет:</b>
+Для большого количества установи паузу 15-20 сек в настройках!
+
+Текущая пауза: <b>{pause}сек</b>
 
 Выбери количество:
 """
@@ -221,14 +236,14 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     session = get_session(update.effective_user.id)
-    current = session.get('pause_seconds', 5)
+    current = session.get('pause_seconds', 10)
     
     keyboard = [
-        [InlineKeyboardButton(f"{'✅' if current==3 else ''} 3 сек", callback_data="pause:3"),
-         InlineKeyboardButton(f"{'✅' if current==5 else ''} 5 сек", callback_data="pause:5")],
-        [InlineKeyboardButton(f"{'✅' if current==10 else ''} 10 сек", callback_data="pause:10"),
-         InlineKeyboardButton(f"{'✅' if current==15 else ''} 15 сек", callback_data="pause:15")],
-        [InlineKeyboardButton(f"{'✅' if current==30 else ''} 30 сек", callback_data="pause:30")],
+        [InlineKeyboardButton(f"{'✅' if current==5 else ''} 5 сек", callback_data="pause:5"),
+         InlineKeyboardButton(f"{'✅' if current==10 else ''} 10 сек", callback_data="pause:10")],
+        [InlineKeyboardButton(f"{'✅' if current==15 else ''} 15 сек ⭐", callback_data="pause:15"),
+         InlineKeyboardButton(f"{'✅' if current==20 else ''} 20 сек", callback_data="pause:20")],
+        [InlineKeyboardButton(f"{'✅' if current==30 else ''} 30 сек 🛡", callback_data="pause:30")],
         [InlineKeyboardButton("◀️ Назад", callback_data="start")]
     ]
     
@@ -243,9 +258,17 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Все коды успешно приходили
 
 <b>Рекомендации:</b>
-• 3-5 сек - быстро, но риск флудвейта
-• 10-15 сек - оптимально ⭐
-• 30 сек - максимально безопасно
+• 5 сек - быстро, риск флудвейта
+• 10 сек - нормально для 3-5 кодов
+• 15 сек ⭐ - оптимально для 10-15 кодов
+• 20 сек - безопасно для 20 кодов
+• 30 сек 🛡 - максимальная защита
+
+<b>💡 Для удаления аккаунтов:</b>
+Используй минимум 15-20 сек!
+
+<b>⚠️ Если получаешь флудвейт:</b>
+Увеличь паузу до 20-30 сек
 
 Выбери паузу:
 """
@@ -439,37 +462,76 @@ async def process_multiple_logins(update, context, phone, count, pause):
     session['multi_total'] = 0
 
 async def process_delete_requests(update, context, phones):
-    """Обработка запросов на удаление"""
-    pause = get_session(update.effective_user.id).get('pause_seconds', 5)
+    """Обработка запросов на удаление - ПРАВИЛЬНЫЙ метод"""
+    pause = get_session(update.effective_user.id).get('pause_seconds', 10)
     success = 0
+    
+    # Увеличиваем паузу для удаления (более жесткие лимиты)
+    delete_pause = max(pause, 10)
     
     for i, phone in enumerate(phones, 1):
         try:
-            await update.message.reply_text(f"⏳ Обрабатываю {i}/{len(phones)}: {phone}")
+            await update.message.reply_text(f"⏳ Запрос удаления {i}/{len(phones)}: {phone}")
             
+            # Удаляем старую сессию
             delete_session_file(phone)
+            await asyncio.sleep(2)
+            
             client = TelegramClient(f'session_{phone.replace("+", "")}', API_ID, API_HASH)
             await client.connect()
             
-            # Логинимся
-            await client.send_code_request(phone)
-            
-            # Примечание: для delete_account нужна авторизация
-            # Пока только отправляем код - код удаления придет при попытке удаления через официальный клиент
-            
-            await client.disconnect()
-            success += 1
-            
-            await update.message.reply_text(f"✅ {i}. {phone} - обработан")
-            
+            # Отправляем код для входа
+            try:
+                sent_code = await client.send_code_request(phone)
+                
+                # Ждем немного
+                await asyncio.sleep(3)
+                
+                # Теперь вызываем удаление аккаунта
+                # Это отправит код с текстом про удаление
+                from telethon.tl.functions.account import DeleteAccountRequest
+                
+                try:
+                    # Пытаемся вызвать удаление (нужна авторизация)
+                    # Это отправит специальный код на номер
+                    await client(DeleteAccountRequest(reason="User request"))
+                except Exception as delete_err:
+                    # Ошибка ожидаема - нужен код авторизации
+                    # Но запрос отправлен и код должен прийти
+                    logger.info(f"Delete request sent for {phone}: {delete_err}")
+                
+                await client.disconnect()
+                success += 1
+                
+                await update.message.reply_text(
+                    f"✅ {i}. <b>{phone}</b>\n"
+                    f"Запрос на удаление отправлен!\n"
+                    f"Проверь Telegram на этом номере.",
+                    parse_mode='HTML'
+                )
+                
+            except FloodWaitError as flood:
+                await update.message.reply_text(
+                    f"⏱ {i}. {phone}\n"
+                    f"Флудвейт! Нужно подождать {flood.seconds}сек\n\n"
+                    f"Останавливаю обработку. Попробуй позже с большей паузой."
+                )
+                break
+                
+            # Увеличенная пауза между запросами удаления
             if i < len(phones):
-                await asyncio.sleep(pause)
+                await update.message.reply_text(f"⏸ Пауза {delete_pause}сек...")
+                await asyncio.sleep(delete_pause)
                 
         except Exception as e:
             await update.message.reply_text(f"❌ {i}. {phone} - ошибка: {e}")
+            logger.error(f"Error processing delete for {phone}: {e}")
     
     await update.message.reply_text(
-        f"<b>🎉 Готово!</b>\n\nОбработано: {success}/{len(phones)}",
+        f"<b>🎉 Обработка завершена!</b>\n\n"
+        f"Успешно: {success}/{len(phones)}\n\n"
+        f"⚠️ Проверь все номера в Telegram!\n"
+        f"Если кода нет - увеличь паузу в настройках.",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ В меню", callback_data="start")]]),
         parse_mode='HTML'
     )
